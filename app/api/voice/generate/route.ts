@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       voiceId,
     })
 
-    return new NextResponse(audioBuffer, {
+    return new NextResponse(new Uint8Array(audioBuffer), {
       headers: {
         "Content-Type": "audio/mpeg",
         "Content-Disposition": "attachment; filename=voice.mp3",

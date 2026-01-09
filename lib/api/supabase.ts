@@ -44,7 +44,7 @@ export async function uploadAudioToSupabase(
 
     if (error) {
       // If bucket doesn't exist, provide helpful error message
-      if (error.message.includes("Bucket") || error.message.includes("not found") || error.statusCode === 404) {
+      if (error.message.includes("Bucket") || error.message.includes("not found")) {
         throw new Error(
           `Storage bucket 'voice-messages' not found. Please create it in your Supabase dashboard:
 1. Go to Storage in your Supabase dashboard
