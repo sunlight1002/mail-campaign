@@ -95,3 +95,102 @@ export async function uploadAudioToSupabase(
   }
 }
 
+/**
+ * Get public or signed URL for an existing file in Supabase Storage
+ * @param filePath - Path to the file in the bucket (e.g., "myfile.mp3" or "folder/myfile.mp3")
+ * @param bucket - Bucket name (default: "voice-messages")
+ * @param useSignedUrl - Whether to use signed URL (for private buckets). Default: false (uses public URL)
+ * @param expiresIn - Expiration time in seconds for signed URLs (default: 600 = 10 minutes)
+ * @returns Public or signed URL that Twilio can access
+ */
+export async function getSupabaseMediaUrl(
+  filePath: string,
+  bucket: string = "voice-messages",
+  useSignedUrl: boolean = false,
+  expiresIn: number = 600
+): Promise<string> {
+  if (!supabase) {
+    throw new Error("Supabase client is not configured. Please check your credentials.")
+  }
+
+  try {
+    let mediaUrl: string
+
+    if (useSignedUrl) {
+      // For private buckets, create a signed URL
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(filePath, expiresIn)
+
+      if (error) {
+        throw new Error(`Failed to create signed URL: ${error.message}`)
+      }
+
+      if (!data?.signedUrl) {
+        throw new Error("Failed to get signed URL from Supabase")
+      }
+
+      mediaUrl = data.signedUrl
+    } else {
+      // For public buckets, get public URL
+      const { data } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath)
+
+      if (!data?.publicUrl) {
+        throw new Error("Failed to get public URL from Supabase")
+      }
+
+      mediaUrl = data.publicUrl
+
+      // Verify the file exists and is accessible
+      try {
+        const testResponse = await fetch(mediaUrl, { method: "HEAD" })
+        if (!testResponse.ok) {
+          // If public URL fails, try signed URL as fallback
+          console.warn(`Public URL not accessible (${testResponse.status}), trying signed URL...`)
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(filePath, expiresIn)
+          
+          if (signedError || !signedData?.signedUrl) {
+            throw new Error(`Media file not accessible. Public URL returned ${testResponse.status}`)
+          }
+          
+          mediaUrl = signedData.signedUrl
+        }
+      } catch (error: any) {
+        // If HEAD request fails, try signed URL as fallback
+        if (!useSignedUrl) {
+          console.warn("Public URL verification failed, trying signed URL...", error.message)
+          try {
+            const { data: signedData, error: signedError } = await supabase.storage
+              .from(bucket)
+              .createSignedUrl(filePath, expiresIn)
+            
+            if (!signedError && signedData?.signedUrl) {
+              mediaUrl = signedData.signedUrl
+            } else {
+              throw error // Re-throw original error
+            }
+          } catch {
+            throw error // Re-throw original error
+          }
+        } else {
+          throw error
+        }
+      }
+    }
+
+    // Ensure URL is HTTPS (required by Twilio)
+    if (!mediaUrl.startsWith("https://")) {
+      throw new Error(`Media URL must be HTTPS. Got: ${mediaUrl}`)
+    }
+
+    return mediaUrl
+  } catch (error: any) {
+    console.error("Supabase media URL error:", error)
+    throw new Error(`Failed to get media URL from Supabase: ${error.message || "Unknown error"}`)
+  }
+}
+

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { sendMMS } from "@/lib/api/twilio"
+import { sendVoicemail } from "@/lib/api/twilio"
 import { uploadAudioToSupabase } from "@/lib/api/supabase"
 import { readFile } from "fs/promises"
 import { join } from "path"
@@ -20,10 +20,55 @@ export async function POST(request: NextRequest) {
 
     let mediaUrl: string
 
-    // If audioUrl is provided, use it directly
+    // If audioUrl is provided, check if it's a localhost URL
     if (audioUrl) {
-      mediaUrl = audioUrl
-      console.log("Using provided audio URL:", mediaUrl)
+      // Check if the URL is localhost (Twilio cannot access localhost URLs)
+      const isLocalhost = audioUrl.includes("localhost") || 
+                         audioUrl.includes("127.0.0.1") || 
+                         audioUrl.startsWith("/")
+      
+      if (isLocalhost) {
+        console.log("Detected localhost URL, uploading to Supabase:", audioUrl)
+        
+        // Extract file path from URL
+        // Format: http://localhost:3000/temp-media/filename.mp3 -> public/temp-media/filename.mp3
+        let filePath: string
+        try {
+          const url = new URL(audioUrl)
+          // Remove leading slash and map to public directory
+          const relativePath = url.pathname.startsWith("/") ? url.pathname.slice(1) : url.pathname
+          filePath = join(process.cwd(), "public", relativePath)
+        } catch {
+          // If URL parsing fails, assume it's a relative path
+          const relativePath = audioUrl.startsWith("/") ? audioUrl.slice(1) : audioUrl
+          filePath = join(process.cwd(), "public", relativePath)
+        }
+        
+        // Read the file from disk
+        let audioBuffer: Buffer
+        try {
+          audioBuffer = await readFile(filePath)
+        } catch (error: any) {
+          return NextResponse.json(
+            { error: `Failed to read audio file from ${filePath}: ${error.message}` },
+            { status: 404 }
+          )
+        }
+        
+        // Upload to Supabase to get a publicly accessible URL
+        try {
+          const filename = `test-voicemail-${Date.now()}-${Math.random().toString(36).substring(7)}.mp3`
+          mediaUrl = await uploadAudioToSupabase(audioBuffer, filename)
+          console.log("Localhost audio uploaded to Supabase:", mediaUrl)
+        } catch (uploadError: any) {
+          console.error("Failed to upload localhost audio to Supabase:", uploadError)
+          throw new Error(`Failed to upload audio file: ${uploadError.message || "Please check your Supabase configuration."}`)
+        }
+      } else {
+        // URL is publicly accessible, use it directly
+        mediaUrl = audioUrl
+        console.log("Using provided public audio URL:", mediaUrl)
+      }
     } else {
       // Fallback to test1.mp3 file from the project root
       let audioBuffer: Buffer
@@ -39,7 +84,7 @@ export async function POST(request: NextRequest) {
 
       // Upload audio to Supabase Storage
       try {
-        const filename = `test-audio-${Date.now()}.mp3`
+        const filename = `test-voicemail-${Date.now()}-${Math.random().toString(36).substring(7)}.mp3`
         mediaUrl = await uploadAudioToSupabase(audioBuffer, filename)
         console.log("Test audio uploaded to Supabase:", mediaUrl)
       } catch (uploadError: any) {
@@ -48,28 +93,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send MMS via Twilio using the media URL
-    // Note: Twilio automatically adds "Sent from your Twilio trial account - " prefix for trial accounts
-    const result = await sendMMS({
+    // Send voicemail via Twilio using the media URL
+    const result = await sendVoicemail({
       to,
       from: TWILIO_PHONE_NUMBER,
-      mediaUrl,
-      body: "Test audio message from Campaign Manager", // Minimal body text - Twilio will add trial account prefix automatically
+      audioUrl: mediaUrl,
     })
 
     return NextResponse.json({
       success: true,
-      message: `Test audio message sent to ${to}`,
-      messageSid: result.messageSid,
+      message: `Test voicemail sent to ${to}`,
+      callSid: result.callSid,
       status: result.status,
-      mediaUrl, // For debugging
+      audioUrl: mediaUrl, // For debugging
     })
   } catch (error: any) {
-    console.error("Test audio message error:", error)
+    console.error("Test voicemail error:", error)
     return NextResponse.json(
-      { error: error.message || "Failed to send test audio message" },
+      { error: error.message || "Failed to send test voicemail" },
       { status: 500 }
     )
   }
 }
-

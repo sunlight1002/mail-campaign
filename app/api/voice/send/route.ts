@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateVoice } from "@/lib/api/elevenlabs"
-import { sendMMS } from "@/lib/api/twilio"
+import { sendVoicemail } from "@/lib/api/twilio"
 import { uploadAudioToSupabase } from "@/lib/api/supabase"
 
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || "+17179708756"
@@ -24,39 +24,31 @@ export async function POST(request: NextRequest) {
     })
 
     // Upload audio to Supabase Storage
-    let mediaUrl: string
+    let audioUrl: string
 
     try {
       // Generate filename with prospect info for tracking
-      const filename = `voice-${prospect.firstName}-${Date.now()}.mp3`
-      mediaUrl = await uploadAudioToSupabase(audioBuffer, filename)
-      console.log("Audio uploaded to Supabase:", mediaUrl)
+      const filename = `voicemail-${Date.now()}-${Math.random().toString(36).substring(7)}.mp3`
+      audioUrl = await uploadAudioToSupabase(audioBuffer, filename)
+      console.log("Audio uploaded to Supabase:", audioUrl)
     } catch (uploadError: any) {
       console.error("Failed to upload audio to Supabase:", uploadError)
       throw new Error(`Failed to upload audio file: ${uploadError.message || "Please check your Supabase configuration."}`)
     }
 
-    // Send MMS via Twilio using the Supabase URL
-    // Note: For MMS to work properly, the body should be minimal or empty
-    // Some carriers convert to SMS if body text is too long
-    // Note: Twilio automatically adds "Sent from your Twilio trial account - " prefix for trial accounts
-    const messageBody = yourName 
-      ? `Voicemail from ${yourName}`
-      : "Voicemail from Campaign Manager"
-    
-    const result = await sendMMS({
+    // Send voicemail via Twilio using the Supabase URL
+    const result = await sendVoicemail({
       to: prospect.phoneNumber,
       from: TWILIO_PHONE_NUMBER,
-      mediaUrl,
-      body: messageBody, // Minimal body text - Twilio will add trial account prefix automatically
+      audioUrl,
     })
 
     return NextResponse.json({
       success: true,
-      message: `Voicemail MMS sent to ${prospect.firstName}`,
-      messageSid: result.messageSid,
+      message: `Voicemail sent to ${prospect.firstName}`,
+      callSid: result.callSid,
       status: result.status,
-      mediaUrl, // For debugging
+      audioUrl, // For debugging
     })
   } catch (error: any) {
     console.error("Voice send error:", error)

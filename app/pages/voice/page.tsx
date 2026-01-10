@@ -214,7 +214,7 @@ export default function VoiceCampaignPage() {
     }
 
     toast({
-      title: "Audio file selected",
+      title: "Voicemail audio file selected",
       description: `${file.name} is ready for testing`,
     })
   }
@@ -242,7 +242,7 @@ export default function VoiceCampaignPage() {
     if (!testAudioFile) {
       toast({
         title: "No audio file",
-        description: "Please upload an audio file to test",
+        description: "Please upload an audio file to test voicemail",
         variant: "destructive",
       })
       return
@@ -267,7 +267,7 @@ export default function VoiceCampaignPage() {
       const uploadResult = await uploadResponse.json()
       const audioUrl = uploadResult.url
 
-      // Then send the test audio message with the URL
+      // Then send the test voicemail with the URL
       const response = await fetch("/api/voice/test-audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -280,17 +280,17 @@ export default function VoiceCampaignPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to send test audio message")
+        throw new Error(result.error || "Failed to send test voicemail")
       }
 
       toast({
-        title: "Test audio message sent",
-        description: `Test audio message (${testAudioFileName}) sent to ${testPhoneNumber}`,
+        title: "Test voicemail sent",
+        description: `Test voicemail (${testAudioFileName}) sent to ${testPhoneNumber}`,
       })
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to send test audio message",
+        description: error.message || "Failed to send test voicemail",
         variant: "destructive",
       })
     } finally {
@@ -500,8 +500,8 @@ export default function VoiceCampaignPage() {
               <FileDropzone
                 onFileSelect={handleTestAudioFileUpload}
                 accept="audio/*,.mp3,.wav,.m4a,.ogg"
-                label="Test Audio File"
-                description="Upload an audio file (mp3, wav, m4a, ogg) to test audio message delivery"
+                label="Test Voicemail Audio File"
+                description="Upload an audio file (mp3, wav, m4a, ogg) to test voicemail delivery"
                 selectedFileName={testAudioFileName}
                 onRemove={handleRemoveTestAudio}
               />
@@ -522,7 +522,7 @@ export default function VoiceCampaignPage() {
                   className="flex-1"
                 >
                   <Music className="h-4 w-4 mr-2" />
-                  {isTestingAudio ? "Sending..." : "Send Test Audio"}
+                  {isTestingAudio ? "Sending..." : "Send Test Voicemail"}
                 </Button>
               </div>
               <div className="space-y-1">
@@ -530,7 +530,7 @@ export default function VoiceCampaignPage() {
                   <strong>Test SMS:</strong> Sends a simple text message to test your Twilio connection.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Test Audio:</strong> Upload an audio file and send it as MMS to test audio message delivery.
+                  <strong>Test Voicemail:</strong> Upload an audio file and send it as a voicemail call to test voicemail delivery.
                 </p>
               </div>
             </CardContent>
