@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
+import { uploadFileToSupabase } from "@/lib/api/supabase"
 
-// This endpoint temporarily stores audio files and serves them publicly
-// In production, use a proper storage service like S3, Cloudinary, etc.
+// This endpoint stores media files in Supabase Storage and returns public URLs
+// Works in both local and serverless environments
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,12 +25,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create public directory if it doesn't exist
-    const publicDir = join(process.cwd(), "public", "temp-media")
-    if (!existsSync(publicDir)) {
-      await mkdir(publicDir, { recursive: true })
-    }
-
     // Get file extension from original filename
     const originalName = file.name
     const extension = originalName.split(".").pop() || "mp3"
@@ -41,14 +33,15 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(7)
     const filename = `media-${timestamp}-${randomStr}.${extension}`
-    const filepath = join(publicDir, filename)
 
-    // Save file
-    await writeFile(filepath, buffer)
-
-    // Return public URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    const publicUrl = `${baseUrl}/temp-media/${filename}`
+    // Upload to Supabase Storage
+    const contentType = file.type || undefined
+    const publicUrl = await uploadFileToSupabase(
+      buffer,
+      filename,
+      "media", // Use "media" bucket for general media uploads
+      contentType
+    )
 
     return NextResponse.json({
       url: publicUrl,

@@ -96,6 +96,82 @@ export async function uploadAudioToSupabase(
 }
 
 /**
+ * Upload any file buffer to Supabase Storage and return public URL
+ * @param fileBuffer - Buffer containing the file data
+ * @param filename - Filename with extension (e.g., "media-123.mp3")
+ * @param bucket - Bucket name (default: "media")
+ * @param contentType - MIME type of the file (default: inferred from extension)
+ * @returns Public URL of the uploaded file
+ */
+export async function uploadFileToSupabase(
+  fileBuffer: Buffer,
+  filename: string,
+  bucket: string = "media",
+  contentType?: string
+): Promise<string> {
+  if (!supabase) {
+    throw new Error("Supabase client is not configured. Please check your credentials.")
+  }
+
+  // Infer content type from extension if not provided
+  if (!contentType) {
+    const extension = filename.split(".").pop()?.toLowerCase()
+    const contentTypes: Record<string, string> = {
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      m4a: "audio/mp4",
+      mp4: "video/mp4",
+      mov: "video/quicktime",
+      avi: "video/x-msvideo",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+    }
+    contentType = contentTypes[extension || ""] || "application/octet-stream"
+  }
+
+  try {
+    // Upload to Supabase Storage bucket
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filename, fileBuffer, {
+        contentType,
+        upsert: false, // Don't overwrite existing files
+      })
+
+    if (error) {
+      // If bucket doesn't exist, provide helpful error message
+      if (error.message.includes("Bucket") || error.message.includes("not found")) {
+        throw new Error(
+          `Storage bucket '${bucket}' not found. Please create it in your Supabase dashboard:
+1. Go to Storage in your Supabase dashboard
+2. Create a new bucket named "${bucket}"
+3. Make it public (uncheck "Private bucket")
+4. Try again`
+        )
+      }
+      throw error
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filename)
+
+    if (!urlData?.publicUrl) {
+      throw new Error("Failed to get public URL from Supabase")
+    }
+
+    return urlData.publicUrl
+  } catch (error: any) {
+    console.error("Supabase upload error:", error)
+    throw new Error(`Failed to upload to Supabase: ${error.message || "Unknown error"}`)
+  }
+}
+
+/**
  * Get public or signed URL for an existing file in Supabase Storage
  * @param filePath - Path to the file in the bucket (e.g., "myfile.mp3" or "folder/myfile.mp3")
  * @param bucket - Bucket name (default: "voice-messages")
