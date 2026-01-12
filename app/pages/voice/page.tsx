@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, Play, Send, FileText, Settings, MessageSquare, Music, Rocket, Mic } from "lucide-react"
+import { Upload, Play, Send, FileText, Settings, MessageSquare, Rocket, Mic } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { parseProspectFile, type Prospect } from "@/lib/utils/file-parser"
 import { FileDropzone } from "@/components/ui/file-dropzone"
@@ -21,17 +21,14 @@ export default function VoiceCampaignPage() {
   const [yourPhone, setYourPhone] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  const [isTesting, setIsTesting] = useState(false)
-  const [isTestingAudio, setIsTestingAudio] = useState(false)
-  const [testPhoneNumber, setTestPhoneNumber] = useState("")
-  const [testAudioFile, setTestAudioFile] = useState<File | null>(null)
-  const [testAudioFileName, setTestAudioFileName] = useState<string>("")
   const [progress, setProgress] = useState(0)
   const [selectedVoice, setSelectedVoice] = useState("default")
+  const [testPhoneNumber, setTestPhoneNumber] = useState("")
+  const [testAudioFile, setTestAudioFile] = useState<File | null>(null)
+  const [isTesting, setIsTesting] = useState(false)
   const { toast } = useToast()
 
   const STORAGE_KEY = "voiceCampaignSettings"
-  const TEST_AUDIO_STORAGE_KEY = "voiceTestAudio"
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -45,13 +42,6 @@ export default function VoiceCampaignPage() {
         if (settings.yourPhone) setYourPhone(settings.yourPhone)
         if (settings.script) setScript(settings.script)
         if (settings.selectedVoice) setSelectedVoice(settings.selectedVoice)
-      }
-      
-      // Load test audio file name
-      const savedTestAudio = localStorage.getItem(TEST_AUDIO_STORAGE_KEY)
-      if (savedTestAudio) {
-        const testAudio = JSON.parse(savedTestAudio)
-        if (testAudio.fileName) setTestAudioFileName(testAudio.fileName)
       }
     } catch (error) {
       console.error("Failed to load settings from localStorage:", error)
@@ -154,150 +144,6 @@ export default function VoiceCampaignPage() {
     }
   }
 
-  const handleTestMessage = async () => {
-    if (!testPhoneNumber) {
-      toast({
-        title: "Missing phone number",
-        description: "Please enter a phone number to test",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsTesting(true)
-
-    try {
-      const response = await fetch("/api/voice/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: testPhoneNumber,
-          message: "Test message from Campaign Manager. Twilio integration is working!",
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to send test message")
-      }
-
-      toast({
-        title: "Test message sent",
-        description: `Test message sent to ${testPhoneNumber}`,
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to send test message",
-        variant: "destructive",
-      })
-    } finally {
-      setIsTesting(false)
-    }
-  }
-
-  const handleTestAudioFileUpload = async (file: File) => {
-    if (!file) return
-
-    setTestAudioFile(file)
-    setTestAudioFileName(file.name)
-
-    // Save to localStorage
-    try {
-      localStorage.setItem(TEST_AUDIO_STORAGE_KEY, JSON.stringify({
-        fileName: file.name,
-        lastModified: file.lastModified,
-      }))
-    } catch (error) {
-      console.error("Failed to save test audio info:", error)
-    }
-
-    toast({
-      title: "Voicemail audio file selected",
-      description: `${file.name} is ready for testing`,
-    })
-  }
-
-  const handleRemoveTestAudio = () => {
-    setTestAudioFile(null)
-    setTestAudioFileName("")
-    try {
-      localStorage.removeItem(TEST_AUDIO_STORAGE_KEY)
-    } catch (error) {
-      console.error("Failed to remove test audio info:", error)
-    }
-  }
-
-  const handleTestAudioMessage = async () => {
-    if (!testPhoneNumber) {
-      toast({
-        title: "Missing phone number",
-        description: "Please enter a phone number to test",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!testAudioFile) {
-      toast({
-        title: "No audio file",
-        description: "Please upload an audio file to test voicemail",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsTestingAudio(true)
-
-    try {
-      // First, upload the file to get a URL
-      const formData = new FormData()
-      formData.append("file", testAudioFile)
-
-      const uploadResponse = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to upload audio file")
-      }
-
-      const uploadResult = await uploadResponse.json()
-      const audioUrl = uploadResult.url
-
-      // Then send the test voicemail with the URL
-      const response = await fetch("/api/voice/test-audio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: testPhoneNumber,
-          audioUrl: audioUrl,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to send test voicemail")
-      }
-
-      toast({
-        title: "Test voicemail sent",
-        description: `Test voicemail (${testAudioFileName}) sent to ${testPhoneNumber}`,
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to send test voicemail",
-        variant: "destructive",
-      })
-    } finally {
-      setIsTestingAudio(false)
-    }
-  }
-
   const handleSendCampaign = async () => {
     if (!yourName || !yourPhone) {
       toast({
@@ -357,6 +203,71 @@ export default function VoiceCampaignPage() {
     } finally {
       setIsSending(false)
       setProgress(0)
+    }
+  }
+
+  const handleTestAudioUpload = (file: File) => {
+    setTestAudioFile(file)
+  }
+
+  const handleTestVoicemail = async () => {
+    if (!testPhoneNumber || !testAudioFile) {
+      toast({
+        title: "Missing information",
+        description: "Please provide both phone number and audio file",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsTesting(true)
+
+    try {
+      // First, upload the audio file
+      const formData = new FormData()
+      formData.append("file", testAudioFile)
+
+      const uploadResponse = await fetch("/api/media/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || "Failed to upload audio file")
+      }
+
+      const { url: audioUrl } = await uploadResponse.json()
+
+      // Then, send the voicemail
+      const sendResponse = await fetch("/api/voice/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: testPhoneNumber,
+          audioUrl,
+        }),
+      })
+
+      if (!sendResponse.ok) {
+        const errorData = await sendResponse.json()
+        throw new Error(errorData.error || "Failed to send test voicemail")
+      }
+
+      const result = await sendResponse.json()
+
+      toast({
+        title: "Test voicemail sent",
+        description: `Voicemail sent to ${testPhoneNumber}. Call SID: ${result.callSid}`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send test voicemail",
+        variant: "destructive",
+      })
+    } finally {
+      setIsTesting(false)
     }
   }
 
@@ -482,57 +393,42 @@ export default function VoiceCampaignPage() {
                   <MessageSquare className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl">Test Twilio Connection</CardTitle>
-                  <CardDescription className="mt-1">Send test messages to verify Twilio is working</CardDescription>
+                  <CardTitle className="text-xl">Test Voicemail</CardTitle>
+                  <CardDescription className="mt-1">Upload an audio file and send a test voicemail to a phone number</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="testPhone">Phone Number</Label>
+                <Label htmlFor="testPhoneNumber">Phone Number</Label>
                 <Input
-                  id="testPhone"
+                  id="testPhoneNumber"
                   placeholder="+1234567890"
                   value={testPhoneNumber}
                   onChange={(e) => setTestPhoneNumber(e.target.value)}
                 />
-              </div>
-              <FileDropzone
-                onFileSelect={handleTestAudioFileUpload}
-                accept="audio/*,.mp3,.wav,.m4a,.ogg"
-                label="Test Voicemail Audio File"
-                description="Upload an audio file (mp3, wav, m4a, ogg) to test voicemail delivery"
-                selectedFileName={testAudioFileName}
-                onRemove={handleRemoveTestAudio}
-              />
-              <div className="flex gap-4">
-                <Button
-                  onClick={handleTestMessage}
-                  disabled={isTesting || isTestingAudio || !testPhoneNumber}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  {isTesting ? "Sending..." : "Send Test SMS"}
-                </Button>
-                <Button
-                  onClick={handleTestAudioMessage}
-                  disabled={isTesting || isTestingAudio || !testPhoneNumber || !testAudioFile}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Music className="h-4 w-4 mr-2" />
-                  {isTestingAudio ? "Sending..." : "Send Test Voicemail"}
-                </Button>
-              </div>
-              <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  <strong>Test SMS:</strong> Sends a simple text message to test your Twilio connection.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Test Voicemail:</strong> Upload an audio file and send it as a voicemail call to test voicemail delivery.
+                  Enter the phone number in E.164 format (e.g., +1234567890)
                 </p>
               </div>
+              <div className="space-y-2">
+                <FileDropzone
+                  onFileSelect={handleTestAudioUpload}
+                  accept="audio/*,.mp3,.wav,.m4a"
+                  label="Audio File"
+                  description="Upload an audio file (MP3, WAV, M4A)"
+                  selectedFileName={testAudioFile?.name}
+                  onRemove={() => setTestAudioFile(null)}
+                />
+              </div>
+              <Button
+                onClick={handleTestVoicemail}
+                disabled={!testPhoneNumber || !testAudioFile || isTesting}
+                className="w-full hover:scale-105 transition-transform"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {isTesting ? "Sending Test Voicemail..." : "Test Voicemail"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
