@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, Play, Send, FileText, Settings, Video, Rocket } from "lucide-react"
+import { Upload, Play, Send, FileText, Settings, Video, Rocket, Sparkles } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import { parseProspectFile, type Prospect } from "@/lib/utils/file-parser"
@@ -25,6 +25,10 @@ export default function VideoCampaignPage() {
   const [testVideoFileName, setTestVideoFileName] = useState<string>("")
   const [testEmail, setTestEmail] = useState("")
   const [progress, setProgress] = useState(0)
+  const [heygenScript, setHeygenScript] = useState("")
+  const [isGeneratingHeygen, setIsGeneratingHeygen] = useState(false)
+  const [heygenProgress, setHeygenProgress] = useState(0)
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null)
   const { toast } = useToast()
 
   const STORAGE_KEY = "videoCampaignSettings"
@@ -334,14 +338,18 @@ export default function VideoCampaignPage() {
       </div>
 
       <Tabs defaultValue="real" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3 bg-muted/50 p-1 rounded-lg">
+        <TabsList className="flex flex-wrap w-auto max-w-auto bg-muted/50 p-1 rounded-lg justify-start gap-2">
           <TabsTrigger value="real" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Rocket className="h-4 w-4" />
             Real
           </TabsTrigger>
           <TabsTrigger value="test" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Video className="h-4 w-4" />
-            Test
+            Send Video Email Test
+          </TabsTrigger>
+          <TabsTrigger value="heygen" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <Sparkles className="h-4 w-4" />
+            Generate Clone Video
           </TabsTrigger>
           <TabsTrigger value="setting" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Settings className="h-4 w-4" />
@@ -476,6 +484,149 @@ export default function VideoCampaignPage() {
                   <strong>Test Video:</strong> Upload a video file and send it as an email to test video email delivery.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="heygen" className="space-y-6 mt-8">
+          <Card className="card-hover border-2">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">HeyGen Video Clone</CardTitle>
+                  <CardDescription className="mt-1">Generate AI video clone using HeyGen</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="heygenScript">Script Text</Label>
+                <Textarea
+                  id="heygenScript"
+                  placeholder="Enter the text you want the AI clone to say..."
+                  value={heygenScript}
+                  onChange={(e) => setHeygenScript(e.target.value)}
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the text that will be spoken by the AI video clone. The video will be generated using your configured HeyGen avatar and voice.
+                </p>
+              </div>
+
+              {isGeneratingHeygen && (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Generating video...</span>
+                    <span className="text-primary font-semibold">{Math.round(heygenProgress)}%</span>
+                  </div>
+                  <Progress value={heygenProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground">
+                    This may take a few minutes. Please wait...
+                  </p>
+                </div>
+              )}
+
+              {generatedVideoUrl && !isGeneratingHeygen && (
+                <Card className="border-2 border-primary/20 bg-primary/5">
+                  <CardContent className="pt-6">
+                    <div className="space-y-3">
+                      <p className="font-medium">Video Generated Successfully!</p>
+                      <video 
+                        src={generatedVideoUrl} 
+                        controls 
+                        className="w-full rounded-lg"
+                        style={{ maxHeight: "400px" }}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => window.open(generatedVideoUrl, "_blank")}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Open in New Tab
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setGeneratedVideoUrl(null)
+                            setHeygenProgress(0)
+                          }}
+                          variant="outline"
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Button
+                onClick={async () => {
+                  if (!heygenScript.trim()) {
+                    toast({
+                      title: "Missing script",
+                      description: "Please enter text for the video clone",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+
+                  setIsGeneratingHeygen(true)
+                  setHeygenProgress(0)
+                  setGeneratedVideoUrl(null)
+
+                  try {
+                    // Simulate progress updates
+                    const progressInterval = setInterval(() => {
+                      setHeygenProgress((prev) => {
+                        if (prev >= 90) return prev
+                        return prev + 10
+                      })
+                    }, 2000)
+
+                    const response = await fetch("/api/video/heygen-clone", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        text: heygenScript,
+                      }),
+                    })
+
+                    clearInterval(progressInterval)
+                    setHeygenProgress(100)
+
+                    if (!response.ok) {
+                      const error = await response.json()
+                      throw new Error(error.error || "Failed to generate video")
+                    }
+
+                    const result = await response.json()
+                    setGeneratedVideoUrl(result.videoUrl)
+
+                    toast({
+                      title: "Video generated",
+                      description: "Your HeyGen clone video has been generated successfully!",
+                    })
+                  } catch (error: any) {
+                    toast({
+                      title: "Error",
+                      description: error.message || "Failed to generate video",
+                      variant: "destructive",
+                    })
+                  } finally {
+                    setIsGeneratingHeygen(false)
+                  }
+                }}
+                disabled={isGeneratingHeygen || !heygenScript.trim()}
+                className="w-full"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                {isGeneratingHeygen ? "Generating Video..." : "Generate Video Clone"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

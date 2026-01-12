@@ -288,14 +288,14 @@ export default function VoiceCampaignPage() {
       </div>
 
       <Tabs defaultValue="real" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3 bg-muted/50 p-1 rounded-lg">
+        <TabsList className="flex flex-wrap w-auto max-w-auto bg-muted/50 p-1 rounded-lg justify-start gap-2">
           <TabsTrigger value="real" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Rocket className="h-4 w-4" />
             Real
           </TabsTrigger>
           <TabsTrigger value="test" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <MessageSquare className="h-4 w-4" />
-            Test
+            Send Voice Email Test
           </TabsTrigger>
           <TabsTrigger value="setting" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
             <Settings className="h-4 w-4" />
